@@ -11,6 +11,8 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   </head>
   <body>
     <main class="shell">
@@ -46,6 +48,23 @@
           <h2 id="map-title">Mapa dos municípios catalogados</h2>
           <span id="municipalityCount"></span>
         </div>
+        <div class="toolbar map-toolbar" aria-label="Filtros do mapa">
+          <label for="stateFilter">
+            <span>Estado</span>
+            <select id="stateFilter">
+              <option value="">Todos os estados</option>
+            </select>
+          </label>
+          <label for="softwareFilter">
+            <span>Software</span>
+            <select id="softwareFilter">
+              <option value="">Todos os softwares</option>
+            </select>
+          </label>
+          <div class="toolbar-actions">
+            <button id="clearFilters" class="button button-secondary" type="button">Limpar filtros</button>
+          </div>
+        </div>
         <div class="map-layout">
           <div id="municipalityMap" class="municipality-map"></div>
           <div id="municipalityCatalog" class="municipality-catalog"></div>
@@ -66,6 +85,7 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

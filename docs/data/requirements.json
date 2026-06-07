@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-07T18:51:55.056264+00:00",
+  "generated_at": "2026-06-07T18:57:48.925256+00:00",
   "document_count": 1,
   "requirement_count": 625,
   "section_count": 492,
@@ -12111,7 +12111,6 @@
         "Gestão de Almoxarifado",
         "Gestão de Patrimônio",
         "Gestão de Frotas",
-        "Gestão de Frotas Implantação, Conversão e Treinamento do Módulo",
         "Recursos Humanos e Folha de Pagamento",
         "Recursos Humanos e Folha de Pagamento – Atos Legais e Efetividades",
         "Recursos Humanos e Folha de Pagamento – Atualização Cadastral e-Social",
@@ -12121,11 +12120,15 @@
         "Recursos Humanos e Folha de Pagamento – Avaliação e Desempenho",
         "Recursos Humanos e Folha de Pagamento – Registro Concurso Público",
         "Tributos Municipais",
-        "Tributos Municipais –Atendimento ao Contribuinte"
+        "Tributos Municipais –Atendimento ao Contribuinte",
+        "Gestão de ISS Municipal (Nota Fiscal de Serviço Eletrônica e Escrituração de ISS)"
       ],
       "lot_count": 2,
       "item_count": 91,
-      "total_value": "744.468,07"
+      "total_value": "744.468,07",
+      "source_files": [
+        "edital PE 29.2026 -  sistema prefeitura e outros.pdf"
+      ]
     }
   ],
   "comparison": {

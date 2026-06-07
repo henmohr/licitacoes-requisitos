@@ -1,8 +1,12 @@
 const state = {
   data: null,
   map: null,
-  markers: [],
+  markerLayer: null,
   geocodeCache: loadGeocodeCache(),
+  filters: {
+    state: "",
+    software: "",
+  },
 };
 
 const STATIC_MUNICIPALITY_COORDS = {
@@ -16,6 +20,39 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function normalizeForKey(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function uniqueSorted(values) {
+  return [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR"));
+}
+
+function getMunicipalities() {
+  return state.data?.municipalities || [];
+}
+
+function getFilteredMunicipalities() {
+  const municipalities = getMunicipalities();
+  const selectedState = state.filters.state;
+  const selectedSoftware = state.filters.software;
+
+  return municipalities.filter((entry) => {
+    if (selectedState && entry.state !== selectedState) {
+      return false;
+    }
+    if (selectedSoftware && !(entry.software_modules || []).includes(selectedSoftware)) {
+      return false;
+    }
+    return true;
+  });
 }
 
 function loadGeocodeCache() {
@@ -152,14 +189,68 @@ function renderLots() {
     .join("");
 }
 
+function renderFilterControls() {
+  const stateSelect = document.getElementById("stateFilter");
+  const softwareSelect = document.getElementById("softwareFilter");
+  const clearButton = document.getElementById("clearFilters");
+
+  if (!stateSelect || !softwareSelect || !clearButton) {
+    return;
+  }
+
+  const states = uniqueSorted(getMunicipalities().map((entry) => entry.state));
+  const software = uniqueSorted(getMunicipalities().flatMap((entry) => entry.software_modules || []));
+
+  stateSelect.innerHTML = [
+    `<option value="">Todos os estados</option>`,
+    ...states.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+  ].join("");
+
+  softwareSelect.innerHTML = [
+    `<option value="">Todos os softwares</option>`,
+    ...software.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+  ].join("");
+
+  stateSelect.value = state.filters.state;
+  softwareSelect.value = state.filters.software;
+
+  stateSelect.onchange = (event) => {
+    state.filters.state = event.target.value;
+    renderMunicipalityCatalog();
+    renderMap();
+  };
+
+  softwareSelect.onchange = (event) => {
+    state.filters.software = event.target.value;
+    renderMunicipalityCatalog();
+    renderMap();
+  };
+
+  clearButton.onclick = () => {
+    state.filters.state = "";
+    state.filters.software = "";
+    stateSelect.value = "";
+    softwareSelect.value = "";
+    renderMunicipalityCatalog();
+    renderMap();
+  };
+}
+
 function renderMunicipalityCatalog() {
-  const municipalities = state.data.municipalities || [];
+  const allMunicipalities = getMunicipalities();
+  const municipalities = getFilteredMunicipalities();
   const container = document.getElementById("municipalityCatalog");
   const count = document.getElementById("municipalityCount");
-  count.textContent = `${municipalities.length} município(s) catalogado(s)`;
+
+  if (count) {
+    const total = allMunicipalities.length;
+    const filtered = municipalities.length;
+    const suffix = filtered === total ? "" : ` de ${total}`;
+    count.textContent = `${filtered}${suffix} município(s) catalogado(s)`;
+  }
 
   if (!municipalities.length) {
-    container.innerHTML = `<div class="empty">Nenhum município identificado ainda.</div>`;
+    container.innerHTML = `<div class="empty">Nenhum município corresponde aos filtros selecionados.</div>`;
     return;
   }
 
@@ -169,6 +260,7 @@ function renderMunicipalityCatalog() {
         .slice(0, 8)
         .map((name) => `<span class="pill">${escapeHtml(name)}</span>`)
         .join("");
+      const sources = (entry.source_files && entry.source_files.length ? entry.source_files : [entry.source_file]).filter(Boolean);
 
       return `
         <article class="municipality-card">
@@ -178,7 +270,7 @@ function renderMunicipalityCatalog() {
               <h3>${escapeHtml(entry.municipality || entry.source_file)}</h3>
             </div>
             <div class="meta">
-              <span><strong>Arquivo:</strong> ${escapeHtml(entry.source_file)}</span>
+              <span><strong>Arquivos:</strong> ${escapeHtml(sources.join(", "))}</span>
               <span><strong>Lotes:</strong> ${entry.lot_count || 0}</span>
               <span><strong>Itens:</strong> ${entry.item_count || 0}</span>
             </div>
@@ -195,6 +287,7 @@ async function geocodeMunicipality(entry) {
   const query = [entry.municipality, entry.state, "Brasil"].filter(Boolean).join(", ");
   const cacheKey = query.toLowerCase();
   const fallbackKey = `${String(entry.municipality || "").toLowerCase()}|${String(entry.state || "").toLowerCase()}`;
+
   if (STATIC_MUNICIPALITY_COORDS[fallbackKey]) {
     return STATIC_MUNICIPALITY_COORDS[fallbackKey];
   }
@@ -223,29 +316,51 @@ async function geocodeMunicipality(entry) {
   return point;
 }
 
-function clearMarkers() {
-  for (const marker of state.markers) {
-    marker.remove();
-  }
-  state.markers = [];
-}
-
 function initMap() {
   const mapEl = document.getElementById("municipalityMap");
-  if (!mapEl || typeof L === "undefined") {
+  if (!mapEl || typeof L === "undefined" || state.map) {
     return;
   }
 
   state.map = L.map("municipalityMap", { scrollWheelZoom: false }).setView([-14.235, -51.9253], 4);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; OpenStreetMap contributors',
+    attribution: "&copy; OpenStreetMap contributors",
     maxZoom: 18,
   }).addTo(state.map);
+
+  state.markerLayer =
+    typeof L.markerClusterGroup === "function"
+      ? L.markerClusterGroup({
+          showCoverageOnHover: false,
+          spiderfyOnMaxZoom: true,
+          removeOutsideVisibleBounds: true,
+        })
+      : L.layerGroup();
+  state.map.addLayer(state.markerLayer);
+}
+
+function clearMarkers() {
+  if (state.markerLayer && typeof state.markerLayer.clearLayers === "function") {
+    state.markerLayer.clearLayers();
+  }
+}
+
+function buildPopupContent(entry, point) {
+  const software = (entry.software_modules || []).slice(0, 10).join(", ") || "Sem módulos identificados";
+  const sources = (entry.source_files && entry.source_files.length ? entry.source_files : [entry.source_file]).filter(Boolean).join(", ");
+
+  return `
+    <strong>${escapeHtml(entry.municipality || entry.source_file)}</strong><br />
+    ${escapeHtml(entry.state || "")}<br />
+    <small>${escapeHtml(point.display_name || "")}</small><br />
+    <strong>Softwares:</strong> ${escapeHtml(software)}<br />
+    <strong>Arquivos:</strong> ${escapeHtml(sources)}
+  `;
 }
 
 async function renderMap() {
-  const municipalities = state.data.municipalities || [];
-  if (!state.map || !municipalities.length) {
+  const municipalities = getFilteredMunicipalities();
+  if (!state.map || !state.markerLayer) {
     return;
   }
 
@@ -258,19 +373,17 @@ async function renderMap() {
       continue;
     }
 
-    points.push(point);
-    const marker = L.marker([point.lat, point.lon]).addTo(state.map);
-    marker.bindPopup(`
-      <strong>${escapeHtml(entry.municipality || entry.source_file)}</strong><br />
-      ${escapeHtml(entry.state || "")}<br />
-      ${escapeHtml((entry.software_modules || []).slice(0, 6).join(", "))}
-    `);
-    state.markers.push(marker);
+    points.push([point.lat, point.lon]);
+    const marker = L.marker([point.lat, point.lon]);
+    marker.bindPopup(buildPopupContent(entry, point));
+    state.markerLayer.addLayer(marker);
   }
 
   if (points.length) {
-    const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
+    const bounds = L.latLngBounds(points);
     state.map.fitBounds(bounds.pad(0.25));
+  } else {
+    state.map.setView([-14.235, -51.9253], 4);
   }
 }
 
@@ -280,6 +393,7 @@ async function main() {
 
   renderStats();
   renderStatus();
+  renderFilterControls();
   renderMunicipalityCatalog();
   renderLots();
   initMap();

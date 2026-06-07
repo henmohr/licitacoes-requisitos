@@ -50,6 +50,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  appearance: none;
   border-radius: 999px;
   padding: 12px 18px;
   background: var(--accent-2);
@@ -57,6 +58,7 @@ body {
   text-decoration: none;
   font-weight: 700;
   border: 1px solid transparent;
+  cursor: pointer;
 }
 
 .button-secondary {
@@ -129,7 +131,7 @@ h1 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: 1fr 220px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin: 22px 0;
 }
@@ -139,6 +141,19 @@ h1 {
   gap: 8px;
   border-radius: 18px;
   padding: 14px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: end;
+}
+
+.toolbar-actions .button {
+  width: 100%;
+}
+
+.map-toolbar {
+  margin-top: 14px;
 }
 
 .toolbar span {
@@ -467,6 +482,12 @@ select {
 .municipality-total {
   margin: 12px 0 0;
   color: var(--muted);
+}
+
+.map-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .comparison {

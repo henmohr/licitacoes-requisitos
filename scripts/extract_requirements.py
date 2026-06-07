@@ -183,6 +183,7 @@ class MunicipalityRecord:
     lot_count: int
     item_count: int
     total_value: str
+    source_files: list[str]
 
 
 def command_exists(name: str) -> bool:
@@ -641,6 +642,12 @@ def extract_software_modules(lots: list[LotBlock]) -> list[str]:
         for item in lot.items:
             description = SOFTWARE_PREFIX_RE.sub("", item.description).strip(" -–")
             description = normalize_spaces(description)
+            description = re.sub(
+                r"\s+(?:Implanta[cç][aã]o, Convers[aã]o e Treinamento do M[oó]dulo|Licen[cç]a e Loca[cç][aã]o do M[oó]dulo)$",
+                "",
+                description,
+                flags=re.IGNORECASE,
+            )
             description = re.sub(r"^(?:de|da|do|das|dos|e)\s+", "", description, flags=re.IGNORECASE)
             description = re.sub(r"^M[oó]dulo\s+", "", description, flags=re.IGNORECASE)
             if not description:
@@ -652,6 +659,40 @@ def extract_software_modules(lots: list[LotBlock]) -> list[str]:
             modules.append(description)
 
     return modules
+
+
+def aggregate_municipalities(records: list[MunicipalityRecord]) -> list[MunicipalityRecord]:
+    grouped: dict[tuple[str, str], MunicipalityRecord] = {}
+
+    for record in records:
+        key = (record.municipality.lower(), record.state.lower())
+        if key not in grouped:
+            grouped[key] = MunicipalityRecord(
+                source_file=record.source_file,
+                municipality=record.municipality,
+                state=record.state,
+                software_modules=list(record.software_modules),
+                lot_count=record.lot_count,
+                item_count=record.item_count,
+                total_value=record.total_value,
+                source_files=[record.source_file],
+            )
+            continue
+
+        existing = grouped[key]
+        existing.source_files.append(record.source_file)
+        existing.lot_count += record.lot_count
+        existing.item_count += record.item_count
+        total_values = [value.strip() for value in existing.total_value.split(",") if value.strip()]
+        if record.total_value and record.total_value not in total_values:
+            total_values.append(record.total_value)
+            existing.total_value = ", ".join(total_values)
+
+        for module in record.software_modules:
+            if module not in existing.software_modules:
+                existing.software_modules.append(module)
+
+    return list(grouped.values())
 
 
 def extract_lots_from_pages(pdf_path: Path, pages: list[str]) -> list[LotBlock]:
@@ -911,13 +952,14 @@ def build_report(pdf_paths: list[Path]) -> dict:
                 lot_count=len(lots),
                 item_count=sum(len(lot.items) for lot in lots),
                 total_value=total_value,
+                source_files=[pdf_path.name],
             )
         )
 
     requirements_dicts = [asdict(req) for req in all_requirements]
     sections_dicts = [asdict(section) for section in all_sections]
     lots_dicts = [asdict(lot) for lot in all_lots]
-    municipalities_dicts = [asdict(entry) for entry in municipalities]
+    municipalities_dicts = [asdict(entry) for entry in aggregate_municipalities(municipalities)]
     comparison = build_comparison(documents, requirements_dicts)
 
     return {

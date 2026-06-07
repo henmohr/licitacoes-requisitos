@@ -36,6 +36,7 @@ python3 scripts/extract_requirements.py --input-dir /caminho/para/pdfs --output-
 - Identifica frases com padrões de requisito
 - Classifica de forma heurística em categorias como `tecnico`, `prazo`, `habilitacao` e `restricao`
 - Detecta títulos de seção, inclusive blocos de tabela com cabeçalhos quebrados em mais de uma linha
+- Extrai lotes de preços com item, descrição, quantidade, valor unitário e valor total
 - Resume por seção e marca duplicatas exatas entre documentos
 - Gera CSV para abrir no Excel ou importar em outras ferramentas
 - Mostra comparação entre editais quando houver mais de um PDF

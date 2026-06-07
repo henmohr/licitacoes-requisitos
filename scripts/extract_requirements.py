@@ -110,6 +110,14 @@ SECTION_HINTS: list[tuple[str, str, int]] = [
     (r"contrat", "geral", 1),
 ]
 
+LOT_HEADER_RE = re.compile(r"^LOTE\s+(?P<number>\d+)\s+-\s+(?P<title>.+)$", re.IGNORECASE)
+LOT_TOTAL_RE = re.compile(r"^LOTE\s+(?P<number>\d+)\s+R\$\s*(?P<total>[\d\.\,]+)$", re.IGNORECASE)
+LOT_ITEM_RE = re.compile(
+    r"^\s*(?P<item>\d+)(?:\s+(?P<prefix>.*?))?\s+(?P<unit>Unid\.|Mês|Hora)\s+(?P<qty>\d+)\s+R\$\s*(?P<unit_price>[\d\.\,]+)(?:\s+R\$\s*(?P<total_price>[\d\.\,]+))?\s*$",
+    re.IGNORECASE,
+)
+LOT_PRICE_RE = re.compile(r"R\$\s*[\d\.\,]+")
+
 
 @dataclass
 class Requirement:
@@ -133,6 +141,26 @@ class SectionBlock:
     is_table_like: bool
     line_count: int
     row_count: int
+
+
+@dataclass
+class LotItem:
+    item: str
+    description: str
+    unit: str
+    qty: str
+    unit_price: str
+    total_price: str
+
+
+@dataclass
+class LotBlock:
+    source_file: str
+    page: int
+    number: str
+    title: str
+    total_value: str
+    items: list[LotItem]
 
 
 def command_exists(name: str) -> bool:
@@ -544,6 +572,126 @@ def extract_requirements_from_pdf(pdf_path: Path) -> list[Requirement]:
     return extract_requirements_from_pages(pdf_path, pages)
 
 
+def strip_price_tokens(text: str) -> str:
+    if not text:
+        return ""
+    return LOT_PRICE_RE.sub("", text).replace("R$", "").strip()
+
+
+def extract_lots_from_pages(pdf_path: Path, pages: list[str]) -> list[LotBlock]:
+    lines: list[tuple[int, int, str]] = []
+    for page_number, page_text in enumerate(pages, start=1):
+        for raw_line in page_text.splitlines():
+            line = normalize_spaces(raw_line.replace("\t", " "))
+            if line:
+                lines.append((page_number, len(lines), line))
+
+    lots: list[LotBlock] = []
+    current_start = None
+    current_header = None
+
+    for index, (_, _, line) in enumerate(lines):
+        header_match = LOT_HEADER_RE.match(line)
+        if header_match:
+            if current_start is not None and current_header is not None:
+                lots.append(
+                    build_lot_block(pdf_path.name, lines, current_start, index, current_header)
+                )
+            current_start = index
+            current_header = header_match
+
+    if current_start is not None and current_header is not None:
+        lots.append(build_lot_block(pdf_path.name, lines, current_start, len(lines), current_header))
+
+    return lots
+
+
+def build_lot_block(
+    source_file: str,
+    lines: list[tuple[int, int, str]],
+    start_index: int,
+    end_index: int,
+    header_match: re.Match[str],
+) -> LotBlock:
+    subset = lines[start_index:end_index]
+    page = subset[0][0] if subset else 0
+    number = header_match.group("number")
+    title = f"LOTE {number} - {header_match.group('title').strip()}"
+    total_value = ""
+    item_rows: list[tuple[int, re.Match[str]]] = []
+
+    for idx, (_, _, line) in enumerate(subset):
+        total_match = LOT_TOTAL_RE.match(line)
+        if total_match and total_match.group("number") == number:
+            total_value = total_match.group("total")
+            continue
+
+        item_match = LOT_ITEM_RE.match(line)
+        if item_match:
+            item_rows.append((idx, item_match))
+
+    items: list[LotItem] = []
+    for item_pos, item_match in item_rows:
+        prefix = strip_price_tokens(item_match.group("prefix"))
+        inferred_total = item_match.group("total_price") or ""
+        prev_text = ""
+        next_text = ""
+
+        for back_index in range(item_pos - 1, max(-1, item_pos - 3), -1):
+            line = subset[back_index][2]
+            if LOT_HEADER_RE.match(line) or LOT_TOTAL_RE.match(line) or LOT_ITEM_RE.match(line):
+                break
+            cleaned = strip_price_tokens(line)
+            if cleaned and not re.match(r"^(Item\s+Descrição|Unid\.|Mês|Hora|\d+)$", cleaned, re.IGNORECASE):
+                prev_text = cleaned
+                break
+
+        for forward_index in range(item_pos + 1, min(len(subset), item_pos + 3)):
+            line = subset[forward_index][2]
+            if LOT_HEADER_RE.match(line) or LOT_TOTAL_RE.match(line) or LOT_ITEM_RE.match(line):
+                break
+            cleaned = strip_price_tokens(line)
+            if cleaned and not re.match(r"^(Item\s+Descrição|Unid\.|Mês|Hora|\d+)$", cleaned, re.IGNORECASE):
+                if not inferred_total and re.match(r"^[\d\.\,]+$", cleaned):
+                    inferred_total = cleaned
+                    continue
+                next_text = cleaned
+                break
+
+        description_parts: list[str] = []
+        if prefix:
+            if prev_text and re.match(r"^(de|da|do|das|dos|e|em|no|na)\b", prefix, re.IGNORECASE):
+                description_parts.append(prev_text)
+            description_parts.append(prefix)
+            if next_text:
+                description_parts.append(next_text)
+        else:
+            if prev_text:
+                description_parts.append(prev_text)
+            if next_text:
+                description_parts.append(next_text)
+        description = normalize_spaces(" ".join(description_parts))
+        items.append(
+            LotItem(
+                item=item_match.group("item"),
+                description=description,
+                unit=item_match.group("unit"),
+                qty=item_match.group("qty"),
+                unit_price=item_match.group("unit_price"),
+                total_price=inferred_total,
+            )
+        )
+
+    return LotBlock(
+        source_file=source_file,
+        page=page,
+        number=number,
+        title=title,
+        total_value=total_value,
+        items=items,
+    )
+
+
 def build_comparison(documents: list[dict], requirements: list[dict]) -> dict:
     by_doc: dict[str, list[dict]] = defaultdict(list)
     groups: dict[str, list[dict]] = defaultdict(list)
@@ -654,11 +802,13 @@ def build_report(pdf_paths: list[Path]) -> dict:
     documents: list[dict] = []
     all_requirements: list[Requirement] = []
     all_sections: list[SectionBlock] = []
+    all_lots: list[LotBlock] = []
 
     for pdf_path in pdf_paths:
         pages = extract_pdf_pages(pdf_path)
         requirements = extract_requirements_from_pages(pdf_path, pages)
         sections = extract_sections_from_pages(pdf_path, pages)
+        lots = extract_lots_from_pages(pdf_path, pages)
         kind_counts = Counter(requirement.kind for requirement in requirements)
         documents.append(
             {
@@ -671,9 +821,11 @@ def build_report(pdf_paths: list[Path]) -> dict:
         )
         all_requirements.extend(requirements)
         all_sections.extend(sections)
+        all_lots.extend(lots)
 
     requirements_dicts = [asdict(req) for req in all_requirements]
     sections_dicts = [asdict(section) for section in all_sections]
+    lots_dicts = [asdict(lot) for lot in all_lots]
     comparison = build_comparison(documents, requirements_dicts)
 
     return {
@@ -681,9 +833,11 @@ def build_report(pdf_paths: list[Path]) -> dict:
         "document_count": len(documents),
         "requirement_count": len(requirements_dicts),
         "section_count": len(sections_dicts),
+        "lot_count": len(lots_dicts),
         "documents": documents,
         "requirements": requirements_dicts,
         "sections": sections_dicts,
+        "lots": lots_dicts,
         "comparison": comparison,
     }
 

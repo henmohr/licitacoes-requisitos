@@ -11,10 +11,10 @@
       <section class="hero">
         <div>
           <p class="eyebrow">GitHub Pages MVP</p>
-          <h1>Requisitos extraídos de editais</h1>
+          <h1>Lotes e valores de editais</h1>
           <p class="lead">
-            Faça upload do PDF no repositório, rode o workflow e publique os requisitos extraídos
-            como uma página estática.
+            Faça upload do PDF no repositório, rode o workflow e publique os lotes com item,
+            quantidade, valor unitário e valor total.
           </p>
           <div class="hero-actions">
             <a class="button" href="https://github.com/henmohr/licitacoes-requisitos/upload/main/inputs" target="_blank" rel="noreferrer">
@@ -27,24 +27,6 @@
         <div class="stats" id="stats"></div>
       </section>
 
-      <section class="panel guide">
-        <div class="panel-header">
-          <h2>Como enviar um edital</h2>
-          <span>Fluxo em 3 passos</span>
-        </div>
-        <ol class="steps">
-          <li>
-            Clique em <strong>Enviar PDF</strong> e abra a pasta <code>inputs/</code> no GitHub.
-          </li>
-          <li>
-            Faça upload do PDF do edital nessa pasta e confirme o commit.
-          </li>
-          <li>
-            O GitHub Actions processa o arquivo e o GitHub Pages publica a nova análise.
-          </li>
-        </ol>
-      </section>
-
       <section class="panel status" aria-labelledby="status-title">
         <div class="panel-header">
           <h2 id="status-title">Status da última execução</h2>
@@ -53,81 +35,12 @@
         <div id="pipelineStatus" class="status-grid"></div>
       </section>
 
-      <section class="panel" aria-labelledby="sections-title">
-        <div class="panel-header">
-          <h2 id="sections-title">Seções do edital</h2>
-          <span id="sectionCount"></span>
-        </div>
-        <div id="sections" class="sections"></div>
-      </section>
-
       <section class="panel" aria-labelledby="lots-title">
         <div class="panel-header">
           <h2 id="lots-title">Lotes e valores</h2>
           <span id="lotCount"></span>
         </div>
         <div id="lots" class="lots"></div>
-      </section>
-
-      <section class="panel guide">
-        <div class="panel-header">
-          <h2>Como a análise funciona</h2>
-          <span>Pipeline de processamento</span>
-        </div>
-        <ol class="steps">
-          <li>
-            O workflow extrai o texto do PDF com <code>pdftotext</code> e usa OCR quando a página parece escaneada.
-          </li>
-          <li>
-            O script procura padrões de requisito, classifica cada trecho por tipo e registra página, seção e confiança.
-          </li>
-          <li>
-            O site mostra o resultado bruto, os requisitos filtrados e uma comparação entre editais para identificar itens únicos, compartilhados e duplicatas exatas.
-          </li>
-        </ol>
-      </section>
-
-      <section class="toolbar">
-        <label>
-          <span>Buscar</span>
-          <input id="search" type="search" placeholder="Palavra-chave, seção, texto..." />
-        </label>
-        <label>
-          <span>Tipo</span>
-          <select id="kindFilter">
-            <option value="">Todos</option>
-          </select>
-        </label>
-      </section>
-
-      <section>
-        <div class="panel">
-          <div class="panel-header">
-            <h2>Documentos</h2>
-            <span id="generatedAt"></span>
-          </div>
-          <div id="documents" class="documents"></div>
-        </div>
-      </section>
-
-      <section>
-        <div class="panel">
-          <div class="panel-header">
-            <h2>Requisitos</h2>
-            <span id="resultCount"></span>
-          </div>
-          <div id="requirements" class="requirements"></div>
-        </div>
-      </section>
-
-      <section>
-        <div class="panel">
-          <div class="panel-header">
-            <h2>Comparação entre editais</h2>
-            <span id="comparisonCount"></span>
-          </div>
-          <div id="comparison" class="comparison"></div>
-        </div>
       </section>
     </main>
 

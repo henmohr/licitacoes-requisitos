@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 import unicodedata
 from collections import Counter, defaultdict
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
@@ -128,6 +128,37 @@ SOFTWARE_PREFIX_RE = re.compile(
     r"^(?:Implanta[cç][aã]o, Convers[aã]o e Treinamento do M[oó]dulo|Licen[cç]a e Loca[cç][aã]o do M[oó]dulo)\s+",
     re.IGNORECASE,
 )
+CNPJ_RE = re.compile(r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b")
+
+STATE_NAME_TO_ABBR = {
+    "Acre": "AC",
+    "Alagoas": "AL",
+    "Amapá": "AP",
+    "Amazonas": "AM",
+    "Bahia": "BA",
+    "Ceará": "CE",
+    "Distrito Federal": "DF",
+    "Espírito Santo": "ES",
+    "Goiás": "GO",
+    "Maranhão": "MA",
+    "Mato Grosso": "MT",
+    "Mato Grosso do Sul": "MS",
+    "Minas Gerais": "MG",
+    "Pará": "PA",
+    "Paraíba": "PB",
+    "Paraná": "PR",
+    "Pernambuco": "PE",
+    "Piauí": "PI",
+    "Rio de Janeiro": "RJ",
+    "Rio Grande do Norte": "RN",
+    "Rio Grande do Sul": "RS",
+    "Rondônia": "RO",
+    "Roraima": "RR",
+    "Santa Catarina": "SC",
+    "São Paulo": "SP",
+    "Sergipe": "SE",
+    "Tocantins": "TO",
+}
 
 
 @dataclass
@@ -179,11 +210,24 @@ class MunicipalityRecord:
     source_file: str
     municipality: str
     state: str
-    software_modules: list[str]
-    lot_count: int
-    item_count: int
-    total_value: str
-    source_files: list[str]
+    cod_municipio: str = ""
+    uf: str = ""
+    population: str = ""
+    population_range: str = ""
+    region: str = ""
+    atendimento_website: str = ""
+    atendimento_whatsapp: str = ""
+    atendimento_telefone: str = ""
+    nao_disponibiliza_atendimento_distancia: str = ""
+    software_internal: str = ""
+    software_sociedade: str = ""
+    nao_desenvolveu_software: str = ""
+    municipality_cnpj: str = ""
+    software_modules: list[str] = field(default_factory=list)
+    lot_count: int = 0
+    item_count: int = 0
+    total_value: str = ""
+    source_files: list[str] = field(default_factory=list)
 
 
 def command_exists(name: str) -> bool:
@@ -611,6 +655,52 @@ def normalize_display_name(text: str) -> str:
     return result
 
 
+def state_abbr_from_name(state: str) -> str:
+    normalized = normalize_display_name(state)
+    return STATE_NAME_TO_ABBR.get(normalized, state.upper() if len(state) == 2 else "")
+
+
+def extract_cnpjs_from_pages(pages: list[str]) -> list[str]:
+    haystack = "\n".join(pages)
+    return sorted(set(CNPJ_RE.findall(haystack)))
+
+
+def normalize_csv_value(value: str) -> str:
+    if value is None:
+        return ""
+    value = value.strip()
+    return "" if value in {"-", "—"} else value
+
+
+def load_municipality_reference(csv_path: Path) -> dict[tuple[str, str], dict[str, str]]:
+    if not csv_path.exists():
+        return {}
+
+    reference: dict[tuple[str, str], dict[str, str]] = {}
+    with csv_path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            municipality = normalize_display_name(row.get("municipio", ""))
+            uf = normalize_display_name(row.get("UF", "")).upper()
+            key = (normalize_for_key(municipality), uf)
+            reference[key] = {
+                "cod_municipio": normalize_csv_value(row.get("cod_municipio", "")),
+                "uf": uf,
+                "population": normalize_csv_value(row.get("populacao", "")),
+                "population_range": normalize_csv_value(row.get("faixa_populacao", "")),
+                "region": normalize_csv_value(row.get("regiao", "")),
+                "atendimento_website": normalize_csv_value(row.get("atendimento_website", "")),
+                "atendimento_whatsapp": normalize_csv_value(row.get("atendimento_whatsapp", "")),
+                "atendimento_telefone": normalize_csv_value(row.get("atendimento_telefone", "")),
+                "nao_disponibiliza_atendimento_distancia": normalize_csv_value(row.get("nao_disponibiliza_atendimento_distancia", "")),
+                "software_internal": normalize_csv_value(row.get("software_interno", "")),
+                "software_sociedade": normalize_csv_value(row.get("software_sociedade", "")),
+                "nao_desenvolveu_software": normalize_csv_value(row.get("nao_desenvolveu_software", "")),
+            }
+
+    return reference
+
+
 def extract_municipality_and_state(pages: list[str], pdf_path: Path) -> tuple[str, str]:
     haystack = "\n".join(pages[:4])
     match = MUNICIPALITY_RE.search(haystack)
@@ -671,6 +761,19 @@ def aggregate_municipalities(records: list[MunicipalityRecord]) -> list[Municipa
                 source_file=record.source_file,
                 municipality=record.municipality,
                 state=record.state,
+                cod_municipio=record.cod_municipio,
+                uf=record.uf,
+                population=record.population,
+                population_range=record.population_range,
+                region=record.region,
+                atendimento_website=record.atendimento_website,
+                atendimento_whatsapp=record.atendimento_whatsapp,
+                atendimento_telefone=record.atendimento_telefone,
+                nao_disponibiliza_atendimento_distancia=record.nao_disponibiliza_atendimento_distancia,
+                software_internal=record.software_internal,
+                software_sociedade=record.software_sociedade,
+                nao_desenvolveu_software=record.nao_desenvolveu_software,
+                municipality_cnpj=record.municipality_cnpj,
                 software_modules=list(record.software_modules),
                 lot_count=record.lot_count,
                 item_count=record.item_count,
@@ -915,7 +1018,49 @@ def write_csv(report: dict, csv_path: Path) -> None:
             writer.writerow({key: requirement.get(key, "") for key in fieldnames})
 
 
+def write_municipality_catalog(catalog: list[dict], csv_path: Path, json_path: Path) -> None:
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    json_path.write_text(json.dumps(catalog, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    fieldnames = [
+        "source_file",
+        "municipality",
+        "state",
+        "cod_municipio",
+        "uf",
+        "population",
+        "population_range",
+        "region",
+        "atendimento_website",
+        "atendimento_whatsapp",
+        "atendimento_telefone",
+        "nao_disponibiliza_atendimento_distancia",
+        "software_internal",
+        "software_sociedade",
+        "nao_desenvolveu_software",
+        "municipality_cnpj",
+        "software_modules",
+        "lot_count",
+        "item_count",
+        "total_value",
+        "source_files",
+    ]
+
+    with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        for record in catalog:
+            row = dict(record)
+            row["software_modules"] = " | ".join(record.get("software_modules", []))
+            row["source_files"] = " | ".join(record.get("source_files", []))
+            writer.writerow({key: row.get(key, "") for key in fieldnames})
+
+
 def build_report(pdf_paths: list[Path]) -> dict:
+    repo_root = Path(__file__).resolve().parents[1]
+    municipality_reference = load_municipality_reference(repo_root / "data" / "raw" / "munic_informatica.csv")
     documents: list[dict] = []
     all_requirements: list[Requirement] = []
     all_sections: list[SectionBlock] = []
@@ -929,6 +1074,14 @@ def build_report(pdf_paths: list[Path]) -> dict:
         lots = extract_lots_from_pages(pdf_path, pages)
         municipality, state = extract_municipality_and_state(pages, pdf_path)
         software_modules = extract_software_modules(lots)
+        municipality_cnpjs = extract_cnpjs_from_pages(pages)
+        state_abbr = state_abbr_from_name(state)
+        reference = municipality_reference.get((normalize_for_key(municipality), state_abbr), {})
+        if not reference:
+            for (ref_municipality, _ref_state), ref_value in municipality_reference.items():
+                if ref_municipality == normalize_for_key(municipality):
+                    reference = ref_value
+                    break
         kind_counts = Counter(requirement.kind for requirement in requirements)
         total_value = next((lot.total_value for lot in lots if lot.total_value), "")
         documents.append(
@@ -948,6 +1101,19 @@ def build_report(pdf_paths: list[Path]) -> dict:
                 source_file=pdf_path.name,
                 municipality=municipality,
                 state=state,
+                cod_municipio=reference.get("cod_municipio", ""),
+                uf=reference.get("uf", state_abbr),
+                population=reference.get("population", ""),
+                population_range=reference.get("population_range", ""),
+                region=reference.get("region", ""),
+                atendimento_website=reference.get("atendimento_website", ""),
+                atendimento_whatsapp=reference.get("atendimento_whatsapp", ""),
+                atendimento_telefone=reference.get("atendimento_telefone", ""),
+                nao_disponibiliza_atendimento_distancia=reference.get("nao_disponibiliza_atendimento_distancia", ""),
+                software_internal=reference.get("software_internal", ""),
+                software_sociedade=reference.get("software_sociedade", ""),
+                nao_desenvolveu_software=reference.get("nao_desenvolveu_software", ""),
+                municipality_cnpj=municipality_cnpjs[0] if municipality_cnpjs else "",
                 software_modules=software_modules[:20],
                 lot_count=len(lots),
                 item_count=sum(len(lot.items) for lot in lots),
@@ -974,6 +1140,7 @@ def build_report(pdf_paths: list[Path]) -> dict:
         "sections": sections_dicts,
         "lots": lots_dicts,
         "municipalities": municipalities_dicts,
+        "municipality_catalog": municipalities_dicts,
         "comparison": comparison,
     }
 
@@ -1002,9 +1169,21 @@ def main() -> int:
     csv_path = args.output_dir / args.csv_name
     write_csv(report, csv_path)
 
+    repo_root = Path(__file__).resolve().parents[1]
+    processed_dir = repo_root / "data" / "processed"
+    processed_json_path = processed_dir / "municipality_catalog.json"
+    processed_csv_path = processed_dir / "municipality_catalog.csv"
+    write_municipality_catalog(report["municipality_catalog"], processed_csv_path, processed_json_path)
+
+    published_catalog_json = args.output_dir / "data" / "municipality_catalog.json"
+    published_catalog_csv = args.output_dir / "data" / "municipality_catalog.csv"
+    write_municipality_catalog(report["municipality_catalog"], published_catalog_csv, published_catalog_json)
+
     print(f"Processed {report['document_count']} document(s), extracted {report['requirement_count']} requirement(s).")
     print(f"Wrote {json_path}")
     print(f"Wrote {csv_path}")
+    print(f"Wrote {processed_json_path}")
+    print(f"Wrote {processed_csv_path}")
     return 0
 
 

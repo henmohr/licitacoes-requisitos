@@ -1,0 +1,48 @@
+[
+  {
+    "source_file": "edital PE 29.2026 -  sistema prefeitura e outros.pdf",
+    "municipality": "Bom Sucesso do Sul",
+    "state": "Paraná",
+    "cod_municipio": "4103222",
+    "uf": "PR",
+    "population": "3234",
+    "population_range": "1 - Até 5000",
+    "region": "4 - Sul",
+    "atendimento_website": "Não",
+    "atendimento_whatsapp": "Não",
+    "atendimento_telefone": "Sim",
+    "nao_disponibiliza_atendimento_distancia": "Não",
+    "software_internal": "Não",
+    "software_sociedade": "Não",
+    "nao_desenvolveu_software": "Sim",
+    "municipality_cnpj": "80.874.100/0001-86",
+    "software_modules": [
+      "Contabilidade Pública",
+      "Responsabilidade Fiscal",
+      "Planejamento – PPA, LDO e LOA",
+      "Tesouraria – Saldos de Bancos e Fluxo Monetário",
+      "Informações ao TCE\\PR",
+      "Licitações e Contratos",
+      "Gestão de Almoxarifado",
+      "Gestão de Patrimônio",
+      "Gestão de Frotas",
+      "Recursos Humanos e Folha de Pagamento",
+      "Recursos Humanos e Folha de Pagamento – Atos Legais e Efetividades",
+      "Recursos Humanos e Folha de Pagamento – Atualização Cadastral e-Social",
+      "Recursos Humanos e Folha de Pagamento – Envio de informações e-Social",
+      "Recursos Humanos e Folha de Pagamento – Registro Segurança e Medicina do Trabalho",
+      "Recursos Humanos e Folha de Pagamento – Margem Consignável",
+      "Recursos Humanos e Folha de Pagamento – Avaliação e Desempenho",
+      "Recursos Humanos e Folha de Pagamento – Registro Concurso Público",
+      "Tributos Municipais",
+      "Tributos Municipais –Atendimento ao Contribuinte",
+      "Gestão de ISS Municipal (Nota Fiscal de Serviço Eletrônica e Escrituração de ISS)"
+    ],
+    "lot_count": 2,
+    "item_count": 91,
+    "total_value": "744.468,07",
+    "source_files": [
+      "edital PE 29.2026 -  sistema prefeitura e outros.pdf"
+    ]
+  }
+]

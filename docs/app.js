@@ -1,5 +1,6 @@
 const state = {
   data: null,
+  catalog: null,
   map: null,
   markerLayer: null,
   geocodeCache: loadGeocodeCache(),
@@ -36,7 +37,7 @@ function uniqueSorted(values) {
 }
 
 function getMunicipalities() {
-  return state.data?.municipalities || [];
+  return state.catalog || state.data?.municipalities || [];
 }
 
 function getFilteredMunicipalities() {
@@ -270,12 +271,30 @@ function renderMunicipalityCatalog() {
               <h3>${escapeHtml(entry.municipality || entry.source_file)}</h3>
             </div>
             <div class="meta">
+              <span><strong>Cód. IBGE:</strong> ${escapeHtml(entry.cod_municipio || "Não identificado")}</span>
+              <span><strong>CNPJ:</strong> ${escapeHtml(entry.municipality_cnpj || "Não identificado")}</span>
               <span><strong>Arquivos:</strong> ${escapeHtml(sources.join(", "))}</span>
               <span><strong>Lotes:</strong> ${entry.lot_count || 0}</span>
               <span><strong>Itens:</strong> ${entry.item_count || 0}</span>
             </div>
           </div>
           <div class="kind-pills">${software || '<span class="empty">Sem módulos identificados.</span>'}</div>
+          <div class="kind-pills">
+            <span class="pill">Interno: ${escapeHtml(entry.software_internal || "n/d")}</span>
+            <span class="pill">Sociedade: ${escapeHtml(entry.software_sociedade || "n/d")}</span>
+            <span class="pill">Sem software: ${escapeHtml(entry.nao_desenvolveu_software || "n/d")}</span>
+          </div>
+          <p class="municipality-total">
+            <strong>Base:</strong>
+            ${escapeHtml(entry.region || "Região não identificada")}
+            ${entry.population ? ` • População ${escapeHtml(entry.population)}` : ""}
+          </p>
+          <p class="municipality-total">
+            <strong>Atendimento:</strong>
+            ${[entry.atendimento_website, entry.atendimento_whatsapp, entry.atendimento_telefone]
+              .filter(Boolean)
+              .join(" / ") || "Não identificado"}
+          </p>
           <p class="municipality-total"><strong>Total:</strong> ${escapeHtml(entry.total_value || "Não identificado")}</p>
         </article>
       `;
@@ -390,6 +409,12 @@ async function renderMap() {
 async function main() {
   const response = await fetch("./data/requirements.json");
   state.data = await response.json();
+  try {
+    const catalogResponse = await fetch("./data/municipality_catalog.json");
+    state.catalog = await catalogResponse.json();
+  } catch {
+    state.catalog = state.data.municipality_catalog || state.data.municipalities || [];
+  }
 
   renderStats();
   renderStatus();

@@ -760,6 +760,23 @@ def extract_software_modules(lots: list[LotBlock]) -> list[str]:
     modules: list[str] = []
     seen: set[str] = set()
 
+    def is_module_candidate(description: str) -> bool:
+        if not description or len(description) > 100:
+            return False
+        if re.search(r"\d", description):
+            return False
+        if re.search(
+            r"\b(?:infraestrutura|consultoria|horas?|usu[aá]rios simult[aâ]neos|atendimento presencial|remoto|"
+            r"cloud|hospedagem|instala[cç][aã]o|implanta[cç][aã]o|migra[cç][aã]o|customiza[cç][aã]o|treinamento|"
+            r"suporte|disponibilizado|conforme a necessidade)\b",
+            description,
+            re.IGNORECASE,
+        ):
+            return False
+        if re.match(r"^(?:implantação|instalação|hospedagem|infraestrutura|horas|serviços|suporte|configurações|migração|customização|treinamentos?)\b", description, re.IGNORECASE):
+            return False
+        return True
+
     for lot in lots:
         for item in lot.items:
             description = SOFTWARE_PREFIX_RE.sub("", item.description).strip(" -–")
@@ -772,13 +789,50 @@ def extract_software_modules(lots: list[LotBlock]) -> list[str]:
             )
             description = re.sub(r"^(?:de|da|do|das|dos|e)\s+", "", description, flags=re.IGNORECASE)
             description = re.sub(r"^M[oó]dulo\s+", "", description, flags=re.IGNORECASE)
-            if not description:
+            if not description or not is_module_candidate(description):
                 continue
             key = normalize_for_key(description)
             if key in seen:
                 continue
             seen.add(key)
             modules.append(description)
+
+    return modules
+
+
+def extract_document_modules(sections: list[SectionBlock], lots: list[LotBlock]) -> list[str]:
+    modules: list[str] = []
+    seen: set[str] = set()
+
+    def add_module(name: str) -> None:
+        cleaned = normalize_spaces(name)
+        if not cleaned:
+            return
+        key = normalize_for_key(cleaned)
+        if key in seen:
+            return
+        seen.add(key)
+        modules.append(cleaned)
+
+    for section in sections:
+        title = section.title
+        if not re.search(r"\b(M[oó]dulo|PORTAL)\b", title, re.IGNORECASE):
+            continue
+        if re.search(r"\b(anexo|caracter[ií]sticas?\s+t[eé]cnicas?)\b", title, re.IGNORECASE):
+            continue
+
+        cleaned = re.sub(r"^\s*[A-Z]\s*-\s*", "", title)
+        cleaned = re.sub(r"^\d+(?:\.\d+)*\.?\s*", "", cleaned)
+        cleaned = re.sub(r"^M[oó]dulo\s+", "", cleaned, flags=re.IGNORECASE)
+        cleaned = normalize_display_name(cleaned)
+        if cleaned and len(cleaned) <= 80:
+            add_module(cleaned)
+
+    if modules:
+        return modules
+
+    for module in extract_software_modules(lots):
+        add_module(module)
 
     return modules
 
@@ -1107,7 +1161,7 @@ def build_report(pdf_paths: list[Path]) -> dict:
         sections = extract_sections_from_pages(pdf_path, pages)
         lots = extract_lots_from_pages(pdf_path, pages)
         municipality, state = extract_municipality_and_state(pages, pdf_path)
-        software_modules = extract_software_modules(lots)
+        document_modules = extract_document_modules(sections, lots)
         supplier_name, supplier_cnpj = extract_supplier_info(pages)
         state_abbr = state_abbr_from_name(state)
         reference = municipality_reference.get((normalize_for_key(municipality), state_abbr), {})
@@ -1124,6 +1178,14 @@ def build_report(pdf_paths: list[Path]) -> dict:
                 "relative_path": str(pdf_path),
                 "requirement_count": len(requirements),
                 "kind_counts": dict(kind_counts),
+                "municipality": municipality,
+                "state": state,
+                "supplier_name": supplier_name,
+                "supplier_cnpj": supplier_cnpj,
+                "lot_count": len(lots),
+                "item_count": sum(len(lot.items) for lot in lots),
+                "total_value": total_value,
+                "software_modules": document_modules,
                 "top_kinds": kind_counts.most_common(5),
             }
         )
@@ -1149,7 +1211,7 @@ def build_report(pdf_paths: list[Path]) -> dict:
                 nao_desenvolveu_software=reference.get("nao_desenvolveu_software", ""),
                 supplier_name=supplier_name,
                 supplier_cnpj=supplier_cnpj,
-                software_modules=software_modules[:20],
+                software_modules=document_modules[:20],
                 lot_count=len(lots),
                 item_count=sum(len(lot.items) for lot in lots),
                 total_value=total_value,

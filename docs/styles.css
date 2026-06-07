@@ -181,6 +181,61 @@ select {
   margin-top: 18px;
 }
 
+.document-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.doc-tab {
+  border: 1px solid rgba(36, 77, 87, 0.18);
+  border-radius: 999px;
+  background: rgba(36, 77, 87, 0.06);
+  color: var(--accent-2);
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.doc-tab.is-active {
+  background: var(--accent-2);
+  color: #fff;
+}
+
+.document-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px;
+  background: linear-gradient(180deg, #fff 0%, #fffaf3 100%);
+}
+
+.document-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.document-head h3 {
+  margin: 8px 0 0;
+  font-size: 1.12rem;
+  line-height: 1.45;
+}
+
+.document-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.document-lot-wrap {
+  margin-top: 14px;
+}
+
 .guide {
   margin-top: 8px;
 }
@@ -602,6 +657,10 @@ select {
   }
 
   .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .document-summary-grid {
     grid-template-columns: 1fr;
   }
 

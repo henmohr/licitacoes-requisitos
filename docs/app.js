@@ -1,6 +1,7 @@
 const state = {
   data: null,
   catalog: null,
+  activeDocumentFile: "",
   map: null,
   markerLayer: null,
   geocodeCache: loadGeocodeCache(),
@@ -38,6 +39,26 @@ function uniqueSorted(values) {
 
 function getMunicipalities() {
   return state.catalog || state.data?.municipalities || [];
+}
+
+function getDocuments() {
+  return state.data?.documents || [];
+}
+
+function getActiveDocument() {
+  const documents = getDocuments();
+  if (!documents.length) {
+    return null;
+  }
+  return documents.find((document) => document.file === state.activeDocumentFile) || documents[0];
+}
+
+function getDocumentLots(file) {
+  return (state.data?.lots || []).filter((lot) => lot.source_file === file);
+}
+
+function getDocumentSections(file) {
+  return (state.data?.sections || []).filter((section) => section.source_file === file);
 }
 
 function getFilteredMunicipalities() {
@@ -129,65 +150,129 @@ function renderStatus() {
 }
 
 function renderLots() {
-  const lots = state.data.lots || [];
-  const container = document.getElementById("lots");
+  const document = getActiveDocument();
+  const lots = document ? getDocumentLots(document.file) : [];
   const count = document.getElementById("lotCount");
-  count.textContent = `${lots.length} lote(s) detectado(s)`;
+  count.textContent = document ? `${document.file} • ${lots.length} lote(s)` : "Nenhum documento ativo";
+}
 
-  if (!lots.length) {
-    container.innerHTML = `<div class="empty">Nenhum lote de preços foi detectado ainda.</div>`;
+function renderDocumentTabs() {
+  const tabsContainer = document.getElementById("documentTabs");
+  const detailsContainer = document.getElementById("documentDetails");
+  const documents = getDocuments();
+
+  if (!tabsContainer || !detailsContainer) {
     return;
   }
 
-  container.innerHTML = lots
-    .map((lot) => {
-      const rows = (lot.items || [])
-        .map(
-          (item) => `
-            <tr>
-              <td>${escapeHtml(item.item)}</td>
-              <td>${escapeHtml(item.description)}</td>
-              <td>${escapeHtml(item.unit)}</td>
-              <td>${escapeHtml(item.qty)}</td>
-              <td>${escapeHtml(item.unit_price)}</td>
-              <td>${escapeHtml(item.total_price || "")}</td>
-            </tr>
-          `,
-        )
-        .join("");
+  if (!documents.length) {
+    tabsContainer.innerHTML = "";
+    detailsContainer.innerHTML = `<div class="empty">Nenhum documento disponível.</div>`;
+    return;
+  }
 
-      return `
-        <article class="lot-card">
-          <div class="lot-head">
-            <div>
-              <span class="badge">${escapeHtml(lot.number)}</span>
-              <h3>${escapeHtml(lot.title)}</h3>
-            </div>
-            <div class="meta">
-              <span><strong>Página:</strong> ${lot.page}</span>
-              <span><strong>Total do lote:</strong> ${escapeHtml(lot.total_value || "Não identificado")}</span>
-              <span><strong>Itens:</strong> ${lot.items?.length || 0}</span>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table class="lot-table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Descrição</th>
-                  <th>Unid.</th>
-                  <th>Qtde.</th>
-                  <th>Valor Unit.</th>
-                  <th>Valor Total</th>
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-        </article>
-      `;
+  if (!state.activeDocumentFile) {
+    state.activeDocumentFile = documents[0].file;
+  }
+
+  tabsContainer.innerHTML = documents
+    .map((document) => {
+      const active = document.file === state.activeDocumentFile ? "is-active" : "";
+      const label = [document.municipality || document.file, document.state].filter(Boolean).join(" - ");
+      return `<button class="doc-tab ${active}" type="button" data-file="${escapeHtml(document.file)}">${escapeHtml(label)}</button>`;
     })
     .join("");
+
+  tabsContainer.querySelectorAll(".doc-tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeDocumentFile = button.dataset.file || "";
+      renderDocumentTabs();
+      renderLots();
+    });
+  });
+
+  const activeDocument = getActiveDocument();
+  if (!activeDocument) {
+    detailsContainer.innerHTML = `<div class="empty">Nenhum documento ativo.</div>`;
+    return;
+  }
+
+  const modules = activeDocument.software_modules || [];
+  const modulePills = modules.length
+    ? modules.map((name) => `<span class="pill">${escapeHtml(name)}</span>`).join("")
+    : `<span class="empty">Nenhum módulo identificado neste documento.</span>`;
+
+  const docLots = getDocumentLots(activeDocument.file);
+  const docSections = getDocumentSections(activeDocument.file);
+  const sectionTitles = docSections
+    .filter((section) => /M[oó]dulo|PORTAL/i.test(section.title))
+    .slice(0, 8)
+    .map((section) => `<span class="pill">${escapeHtml(section.title.replace(/^\s*[A-Z]\s*-\s*/, "").replace(/^\d+(?:\.\d+)*\.?\s*/, ""))}</span>`)
+    .join("");
+
+  const lotRows = docLots
+    .flatMap((lot) => (lot.items || []).map((item) => ({ ...item, lot_number: lot.number })))
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item.item)}</td>
+          <td>${escapeHtml(item.description)}</td>
+          <td>${escapeHtml(item.unit)}</td>
+          <td>${escapeHtml(item.qty)}</td>
+          <td>${escapeHtml(item.unit_price)}</td>
+          <td>${escapeHtml(item.total_price || "")}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  detailsContainer.innerHTML = `
+    <article class="document-card">
+      <div class="document-head">
+        <div>
+          <span class="badge">${escapeHtml(activeDocument.state || "BR")}</span>
+          <h3>${escapeHtml(activeDocument.municipality || activeDocument.file)}</h3>
+          <p class="map-note">${escapeHtml(activeDocument.file)}</p>
+        </div>
+        <div class="meta">
+          <span><strong>Fornecedor:</strong> ${escapeHtml(activeDocument.supplier_name || "Não identificado")}</span>
+          <span><strong>CNPJ fornecedor:</strong> ${escapeHtml(activeDocument.supplier_cnpj || "Não identificado")}</span>
+          <span><strong>Lotes:</strong> ${activeDocument.lot_count || 0}</span>
+          <span><strong>Itens:</strong> ${activeDocument.item_count || 0}</span>
+          <span><strong>Total:</strong> ${escapeHtml(activeDocument.total_value || "Não identificado")}</span>
+        </div>
+      </div>
+      <div class="kind-pills">${modulePills}</div>
+      ${sectionTitles ? `<div class="kind-pills">${sectionTitles}</div>` : ""}
+      <div class="document-summary-grid">
+        <div class="status-card"><span>Município</span><strong>${escapeHtml(activeDocument.municipality || "Não identificado")}</strong></div>
+        <div class="status-card"><span>Estado</span><strong>${escapeHtml(activeDocument.state || "Não identificado")}</strong></div>
+        <div class="status-card"><span>Requisitos</span><strong>${activeDocument.requirement_count || 0}</strong></div>
+        <div class="status-card"><span>Seções</span><strong>${docSections.length}</strong></div>
+      </div>
+      ${
+        lotRows
+          ? `
+            <div class="table-wrap document-lot-wrap">
+              <table class="lot-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Descrição</th>
+                    <th>Unid.</th>
+                    <th>Qtde.</th>
+                    <th>Valor Unit.</th>
+                    <th>Valor Total</th>
+                  </tr>
+                </thead>
+                <tbody>${lotRows}</tbody>
+              </table>
+            </div>
+          `
+          : `<div class="empty">Nenhum item de lote foi detectado neste documento.</div>`
+      }
+    </article>
+  `;
 }
 
 function renderFilterControls() {
@@ -422,6 +507,7 @@ async function main() {
   renderStats();
   renderStatus();
   renderFilterControls();
+  renderDocumentTabs();
   renderMunicipalityCatalog();
   renderLots();
   initMap();

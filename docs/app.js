@@ -15,6 +15,8 @@ const STATIC_MUNICIPALITY_COORDS = {
   "bom sucesso do sul|paraná": { lat: -26.07, lon: -52.83, display_name: "Bom Sucesso do Sul, Paraná, Brasil" },
 };
 
+const doc = globalThis.document;
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -102,7 +104,7 @@ function renderStats() {
     ? new Date(state.data.generated_at).toLocaleString("pt-BR")
     : "Data indisponível";
 
-  document.getElementById("stats").innerHTML = `
+  doc.getElementById("stats").innerHTML = `
     <div class="stat"><span>Documentos</span><strong>${docs}</strong></div>
     <div class="stat"><span>Municípios</span><strong>${municipalities}</strong></div>
     <div class="stat"><span>Lotes</span><strong>${lots}</strong></div>
@@ -112,7 +114,7 @@ function renderStats() {
 }
 
 function renderStatus() {
-  const container = document.getElementById("pipelineStatus");
+  const container = doc.getElementById("pipelineStatus");
   const lots = state.data.lot_count || state.data.lots?.length || 0;
   const items = (state.data.lots || []).reduce((sum, lot) => sum + (lot.items?.length || 0), 0);
   const municipalities = state.data.municipality_count || state.data.municipalities?.length || 0;
@@ -152,13 +154,13 @@ function renderStatus() {
 function renderLots() {
   const activeDocument = getActiveDocument();
   const lots = activeDocument ? getDocumentLots(activeDocument.file) : [];
-  const count = document.getElementById("lotCount");
+  const count = doc.getElementById("lotCount");
   count.textContent = activeDocument ? `${activeDocument.file} • ${lots.length} lote(s)` : "Nenhum documento ativo";
 }
 
 function renderDocumentTabs() {
-  const tabsContainer = document.getElementById("documentTabs");
-  const detailsContainer = document.getElementById("documentDetails");
+  const tabsContainer = doc.getElementById("documentTabs");
+  const detailsContainer = doc.getElementById("documentDetails");
   const documents = getDocuments();
 
   if (!tabsContainer || !detailsContainer) {
@@ -286,9 +288,9 @@ function renderDocumentTabs() {
 }
 
 function renderFilterControls() {
-  const stateSelect = document.getElementById("stateFilter");
-  const softwareSelect = document.getElementById("softwareFilter");
-  const clearButton = document.getElementById("clearFilters");
+  const stateSelect = doc.getElementById("stateFilter");
+  const softwareSelect = doc.getElementById("softwareFilter");
+  const clearButton = doc.getElementById("clearFilters");
 
   if (!stateSelect || !softwareSelect || !clearButton) {
     return;
@@ -335,8 +337,8 @@ function renderFilterControls() {
 function renderMunicipalityCatalog() {
   const allMunicipalities = getMunicipalities();
   const municipalities = getFilteredMunicipalities();
-  const container = document.getElementById("municipalityCatalog");
-  const count = document.getElementById("municipalityCount");
+  const container = doc.getElementById("municipalityCatalog");
+  const count = doc.getElementById("municipalityCount");
 
   if (count) {
     const total = allMunicipalities.length;
@@ -432,7 +434,7 @@ async function geocodeMunicipality(entry) {
 }
 
 function initMap() {
-  const mapEl = document.getElementById("municipalityMap");
+  const mapEl = doc.getElementById("municipalityMap");
   if (!mapEl || typeof L === "undefined" || state.map) {
     return;
   }
@@ -525,5 +527,5 @@ async function main() {
 }
 
 main().catch((error) => {
-  document.body.innerHTML = `<pre style="padding:24px;color:#b00020">Falha ao carregar dados: ${escapeHtml(error.message)}</pre>`;
+  doc.body.innerHTML = `<pre style="padding:24px;color:#b00020">Falha ao carregar dados: ${escapeHtml(error.message)}</pre>`;
 });

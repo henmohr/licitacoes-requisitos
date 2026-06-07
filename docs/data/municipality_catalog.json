@@ -15,7 +15,8 @@
     "software_internal": "Não",
     "software_sociedade": "Não",
     "nao_desenvolveu_software": "Sim",
-    "municipality_cnpj": "80.874.100/0001-86",
+    "supplier_name": "",
+    "supplier_cnpj": "",
     "software_modules": [
       "Contabilidade Pública",
       "Responsabilidade Fiscal",

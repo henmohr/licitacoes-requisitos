@@ -129,6 +129,12 @@ SOFTWARE_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 CNPJ_RE = re.compile(r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b")
+SUPPLIER_BLOCK_RE = re.compile(
+    r"de outro,\s+a empresa\s+(?P<name>.+?),\s+pessoa jurídica de\s+direito privado.*?"
+    r"inscrita.*?CNPJ.*?sob o n[º°]\s*(?P<cnpj>[A-Z0-9\.\-/]+)",
+    re.IGNORECASE | re.DOTALL,
+)
+SUPPLIER_NAME_RE = re.compile(r"de outro,\s+a empresa\s+(?P<name>.+?),\s+pessoa jurídica de", re.IGNORECASE | re.DOTALL)
 
 STATE_NAME_TO_ABBR = {
     "Acre": "AC",
@@ -222,7 +228,8 @@ class MunicipalityRecord:
     software_internal: str = ""
     software_sociedade: str = ""
     nao_desenvolveu_software: str = ""
-    municipality_cnpj: str = ""
+    supplier_name: str = ""
+    supplier_cnpj: str = ""
     software_modules: list[str] = field(default_factory=list)
     lot_count: int = 0
     item_count: int = 0
@@ -665,6 +672,31 @@ def extract_cnpjs_from_pages(pages: list[str]) -> list[str]:
     return sorted(set(CNPJ_RE.findall(haystack)))
 
 
+def normalize_supplier_name(text: str) -> str:
+    cleaned = normalize_spaces(text)
+    cleaned = cleaned.strip(" ,.;")
+    cleaned = re.sub(r"^\((.+)\)$", r"\1", cleaned)
+    if cleaned.upper() in {"RAZÃO SOCIAL DA EMPRESA", "RAZAO SOCIAL DA EMPRESA", "EMPRESA", "FORNECEDOR"}:
+        return ""
+    return cleaned
+
+
+def extract_supplier_info(pages: list[str]) -> tuple[str, str]:
+    haystack = "\n".join(pages[-8:])
+    block_match = SUPPLIER_BLOCK_RE.search(haystack)
+    if block_match:
+        name = normalize_supplier_name(block_match.group("name"))
+        cnpj = normalize_spaces(block_match.group("cnpj"))
+        if not re.search(r"\d", cnpj):
+            cnpj = ""
+        if "X" in cnpj.upper():
+            cnpj = ""
+        return name, cnpj
+    name_match = SUPPLIER_NAME_RE.search(haystack)
+    supplier_name = normalize_supplier_name(name_match.group("name")) if name_match else ""
+    return supplier_name, ""
+
+
 def normalize_csv_value(value: str) -> str:
     if value is None:
         return ""
@@ -773,7 +805,8 @@ def aggregate_municipalities(records: list[MunicipalityRecord]) -> list[Municipa
                 software_internal=record.software_internal,
                 software_sociedade=record.software_sociedade,
                 nao_desenvolveu_software=record.nao_desenvolveu_software,
-                municipality_cnpj=record.municipality_cnpj,
+                supplier_name=record.supplier_name,
+                supplier_cnpj=record.supplier_cnpj,
                 software_modules=list(record.software_modules),
                 lot_count=record.lot_count,
                 item_count=record.item_count,
@@ -1040,7 +1073,8 @@ def write_municipality_catalog(catalog: list[dict], csv_path: Path, json_path: P
         "software_internal",
         "software_sociedade",
         "nao_desenvolveu_software",
-        "municipality_cnpj",
+        "supplier_name",
+        "supplier_cnpj",
         "software_modules",
         "lot_count",
         "item_count",
@@ -1074,7 +1108,7 @@ def build_report(pdf_paths: list[Path]) -> dict:
         lots = extract_lots_from_pages(pdf_path, pages)
         municipality, state = extract_municipality_and_state(pages, pdf_path)
         software_modules = extract_software_modules(lots)
-        municipality_cnpjs = extract_cnpjs_from_pages(pages)
+        supplier_name, supplier_cnpj = extract_supplier_info(pages)
         state_abbr = state_abbr_from_name(state)
         reference = municipality_reference.get((normalize_for_key(municipality), state_abbr), {})
         if not reference:
@@ -1113,7 +1147,8 @@ def build_report(pdf_paths: list[Path]) -> dict:
                 software_internal=reference.get("software_internal", ""),
                 software_sociedade=reference.get("software_sociedade", ""),
                 nao_desenvolveu_software=reference.get("nao_desenvolveu_software", ""),
-                municipality_cnpj=municipality_cnpjs[0] if municipality_cnpjs else "",
+                supplier_name=supplier_name,
+                supplier_cnpj=supplier_cnpj,
                 software_modules=software_modules[:20],
                 lot_count=len(lots),
                 item_count=sum(len(lot.items) for lot in lots),

@@ -272,7 +272,8 @@ function renderMunicipalityCatalog() {
             </div>
             <div class="meta">
               <span><strong>Cód. IBGE:</strong> ${escapeHtml(entry.cod_municipio || "Não identificado")}</span>
-              <span><strong>CNPJ:</strong> ${escapeHtml(entry.municipality_cnpj || "Não identificado")}</span>
+              <span><strong>Fornecedor:</strong> ${escapeHtml(entry.supplier_name || "Não identificado")}</span>
+              <span><strong>CNPJ fornecedor:</strong> ${escapeHtml(entry.supplier_cnpj || "Não identificado")}</span>
               <span><strong>Arquivos:</strong> ${escapeHtml(sources.join(", "))}</span>
               <span><strong>Lotes:</strong> ${entry.lot_count || 0}</span>
               <span><strong>Itens:</strong> ${entry.item_count || 0}</span>
@@ -373,6 +374,8 @@ function buildPopupContent(entry, point) {
     ${escapeHtml(entry.state || "")}<br />
     <small>${escapeHtml(point.display_name || "")}</small><br />
     <strong>Softwares:</strong> ${escapeHtml(software)}<br />
+    <strong>Fornecedor:</strong> ${escapeHtml(entry.supplier_name || "Não identificado")}<br />
+    <strong>CNPJ fornecedor:</strong> ${escapeHtml(entry.supplier_cnpj || "Não identificado")}<br />
     <strong>Arquivos:</strong> ${escapeHtml(sources)}
   `;
 }

@@ -7,7 +7,7 @@ MVP para analisar editais em PDF, extrair requisitos e publicar o resultado no G
 1. Coloque os PDFs em `inputs/` ou use o botão `Enviar PDF` da página para abrir a tela de upload do GitHub na pasta `inputs/`.
 2. Faça push para `main`.
 3. O GitHub Actions executa `scripts/extract_requirements.py`.
-4. O workflow gera `docs/data/requirements.json` e `docs/data/requirements.csv`.
+4. O workflow gera `docs/data/requirements.json`, `docs/data/requirements.csv` e a lista de seções estruturadas exibida no site.
 5. O GitHub Pages publica `docs/index.html`.
 
 ## Estrutura
@@ -35,6 +35,7 @@ python3 scripts/extract_requirements.py --input-dir /caminho/para/pdfs --output-
 - Faz OCR automático quando a página parece vazia ou escaneada
 - Identifica frases com padrões de requisito
 - Classifica de forma heurística em categorias como `tecnico`, `prazo`, `habilitacao` e `restricao`
+- Detecta títulos de seção, inclusive blocos de tabela com cabeçalhos quebrados em mais de uma linha
 - Resume por seção e marca duplicatas exatas entre documentos
 - Gera CSV para abrir no Excel ou importar em outras ferramentas
 - Mostra comparação entre editais quando houver mais de um PDF

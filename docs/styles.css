@@ -211,7 +211,8 @@ select {
 }
 
 .documents,
-.requirements {
+.requirements,
+.sections {
   display: grid;
   gap: 14px;
 }
@@ -294,6 +295,39 @@ select {
   color: var(--muted);
   font-size: 13px;
   margin-top: 8px;
+}
+
+.section-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px;
+  background: linear-gradient(180deg, #fff 0%, #fffaf3 100%);
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.section-head h3 {
+  margin: 8px 0 0;
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.section-content {
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(36, 77, 87, 0.04);
+  white-space: pre-wrap;
+  overflow-x: auto;
+  color: var(--text);
+  line-height: 1.5;
 }
 
 .comparison {
@@ -390,7 +424,8 @@ select {
   }
 
   .doc-card,
-  .panel-header {
+  .panel-header,
+  .section-head {
     flex-direction: column;
     align-items: flex-start;
   }

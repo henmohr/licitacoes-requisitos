@@ -43,12 +43,14 @@ function renderStats() {
   const requirements = state.data.requirements.filter(matches);
   const total = state.data.requirements.length;
   const docs = state.data.documents.length;
+  const sections = state.data.sections?.length || 0;
   const kinds = uniq(state.data.requirements.map((item) => item.kind));
   const shared = state.data.comparison.shared_requirement_count;
   const unique = state.data.comparison.unique_requirement_count;
 
   document.getElementById("stats").innerHTML = `
     <div class="stat"><span>Documentos</span><strong>${docs}</strong></div>
+    <div class="stat"><span>Seções</span><strong>${sections}</strong></div>
     <div class="stat"><span>Requisitos exibidos</span><strong>${requirements.length}</strong></div>
     <div class="stat"><span>Total bruto</span><strong>${total}</strong></div>
     <div class="stat"><span>Tipos detectados</span><strong>${kinds.length}</strong></div>
@@ -67,6 +69,7 @@ function renderStatus() {
   const shared = comparison.shared_requirement_count || 0;
   const unique = comparison.unique_requirement_count || 0;
   const duplicates = (comparison.duplicate_groups || []).length;
+  const sections = state.data.section_count || state.data.sections?.length || 0;
   const csvReady = state.data.requirement_count > 0 ? "CSV gerado" : "Nenhum CSV disponível ainda";
 
   container.innerHTML = `
@@ -81,6 +84,10 @@ function renderStatus() {
     <div class="status-card">
       <span>Requisitos extraídos</span>
       <strong>${state.data.requirement_count}</strong>
+    </div>
+    <div class="status-card">
+      <span>Seções estruturadas</span>
+      <strong>${sections}</strong>
     </div>
     <div class="status-card">
       <span>Compartilhados</span>
@@ -127,6 +134,39 @@ function renderDocuments() {
               )
               .join("")}
           </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderSections() {
+  const sections = state.data.sections || [];
+  const container = document.getElementById("sections");
+  const count = document.getElementById("sectionCount");
+  count.textContent = `${sections.length} seção(ões) detectadas`;
+
+  if (!sections.length) {
+    container.innerHTML = `<div class="empty">Nenhuma seção estruturada foi detectada ainda.</div>`;
+    return;
+  }
+
+  container.innerHTML = sections
+    .map(
+      (section) => `
+        <article class="section-card">
+          <div class="section-head">
+            <div>
+              <span class="badge">${escapeHtml(section.source_file)}</span>
+              <h3>${escapeHtml(section.title)}</h3>
+            </div>
+            <div class="meta">
+              <span><strong>Página:</strong> ${section.page}</span>
+              <span><strong>Linhas:</strong> ${section.line_count}</span>
+              <span><strong>Tipo:</strong> ${section.is_table_like ? "Tabela" : "Texto"}</span>
+            </div>
+          </div>
+          <pre class="section-content">${escapeHtml(section.content || "Sem conteúdo extraído para esta seção.")}</pre>
         </article>
       `,
     )
@@ -341,6 +381,7 @@ async function main() {
   const response = await fetch("./data/requirements.json");
   state.data = await response.json();
   renderDocuments();
+  renderSections();
   renderFilters();
   renderGeneratedAt();
   renderComparison();

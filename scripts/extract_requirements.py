@@ -59,6 +59,9 @@ HEADING_PATTERNS = [
     re.compile(r"^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9][A-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9 ,;:\-–/()\.]{10,}$"),
 ]
 
+SECTION_NUMBER_PREFIX_RE = re.compile(r"^\d+(?:\.\d+)*\b")
+SECTION_TITLE_CANDIDATE_RE = re.compile(r"^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9][A-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9 ,;:\-–/()\.]{4,}$")
+
 
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;:])\s+")
 
@@ -119,6 +122,17 @@ class Requirement:
     text: str
     normalized_key: str
     confidence: float
+
+
+@dataclass
+class SectionBlock:
+    source_file: str
+    page: int
+    title: str
+    content: str
+    is_table_like: bool
+    line_count: int
+    row_count: int
 
 
 def command_exists(name: str) -> bool:
@@ -248,6 +262,63 @@ def matches_keyword(text: str) -> bool:
     return any(re.search(pattern, lowered) for pattern, _ in KEYWORD_PATTERNS)
 
 
+def is_table_row(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if "\t" in stripped:
+        return True
+    if re.search(r"\s{2,}", stripped):
+        return True
+    return bool(re.match(r"^\d+\s+\S+", stripped))
+
+
+def looks_like_heading_continuation(text: str) -> bool:
+    stripped = normalize_spaces(text)
+    if not stripped or len(stripped) > 140:
+        return False
+    if stripped.endswith(".") and not stripped.endswith(":"):
+        return False
+    letters = [char for char in stripped if char.isalpha()]
+    if not letters:
+        return False
+    upper_ratio = sum(char.isupper() for char in letters) / len(letters)
+    return upper_ratio >= 0.6
+
+
+def detect_heading(lines: list[str], index: int) -> tuple[str, int]:
+    first = normalize_spaces(lines[index].replace("\t", " "))
+    if not first:
+        return "", 0
+
+    if not SECTION_NUMBER_PREFIX_RE.match(first):
+        if any(pattern.match(first) for pattern in HEADING_PATTERNS):
+            return first, 1
+        return "", 0
+
+    combined = first
+    consumed = 1
+
+    for offset in (1, 2):
+        if index + offset >= len(lines):
+            break
+        next_line = normalize_spaces(lines[index + offset].replace("\t", " "))
+        if not next_line or not looks_like_heading_continuation(next_line):
+            break
+        combined = f"{combined} {next_line}"
+        consumed += 1
+        if combined.endswith(":") or any(pattern.match(combined) for pattern in HEADING_PATTERNS):
+            return combined, consumed
+
+    if SECTION_TITLE_CANDIDATE_RE.match(combined) and len(combined) >= 15:
+        return combined, consumed
+
+    if any(pattern.match(first) for pattern in HEADING_PATTERNS):
+        return first, 1
+
+    return "", 0
+
+
 def candidate_score(text: str, section: str) -> int:
     text_lower = text.lower()
     section_lower = section.lower()
@@ -345,24 +416,92 @@ def iter_pdfs(input_dir: Path) -> Iterable[Path]:
             yield path
 
 
-def extract_requirements_from_pdf(pdf_path: Path) -> list[Requirement]:
-    pages = extract_pdf_pages(pdf_path)
+def extract_sections_from_pages(pdf_path: Path, pages: list[str]) -> list[SectionBlock]:
+    sections: list[SectionBlock] = []
+    current: dict | None = None
+
+    def flush_current() -> None:
+        nonlocal current
+        if not current:
+            return
+        content_lines = current["content_lines"]
+        content = "\n".join(content_lines).strip()
+        row_count = sum(1 for line in content_lines if is_table_row(line))
+        sections.append(
+            SectionBlock(
+                source_file=pdf_path.name,
+                page=current["page"],
+                title=current["title"],
+                content=content,
+                is_table_like=row_count >= 2 or any(is_table_row(line) for line in content_lines[:6]),
+                line_count=len([line for line in content_lines if line.strip()]),
+                row_count=row_count,
+            )
+        )
+        current = None
+
+    for page_number, page_text in enumerate(pages, start=1):
+        lines = page_text.splitlines()
+        index = 0
+
+        while index < len(lines):
+            raw_line = normalize_spaces(lines[index].replace("\t", " "))
+            if not raw_line:
+                if current and current["content_lines"] and current["content_lines"][-1] != "":
+                    current["content_lines"].append("")
+                index += 1
+                continue
+
+            if current is not None and is_table_row(raw_line):
+                current["content_lines"].append(raw_line)
+                index += 1
+                continue
+
+            heading, consumed = detect_heading(lines, index)
+            if heading:
+                flush_current()
+                current = {
+                    "page": page_number,
+                    "title": heading,
+                    "content_lines": [],
+                }
+                index += consumed
+                continue
+
+            if current is not None:
+                if raw_line not in NOISE_EXACT and not any(pattern.search(raw_line) for pattern in NOISE_TRAIL_PATTERNS):
+                    current["content_lines"].append(raw_line)
+
+            index += 1
+
+    flush_current()
+    return sections
+
+
+def extract_requirements_from_pages(pdf_path: Path, pages: list[str]) -> list[Requirement]:
     requirements: list[Requirement] = []
     seen: set[str] = set()
     section = ""
 
     for page_number, page_text in enumerate(pages, start=1):
         candidates: list[str] = []
+        lines = page_text.splitlines()
 
-        for raw_line in page_text.splitlines():
+        line_index = 0
+        while line_index < len(lines):
+            raw_line = lines[line_index]
             line = cleanup_sentence(raw_line)
             if not line:
+                line_index += 1
                 continue
-            if is_heading(line):
-                section = line
+            heading, consumed = detect_heading(lines, line_index)
+            if heading:
+                section = heading
+                line_index += consumed
                 continue
             if matches_keyword(line) and len(line) >= 25 and candidate_score(line, section) >= 3:
                 candidates.append(line)
+            line_index += 1
 
         for block in split_blocks(page_text):
             if is_heading(block):
@@ -398,6 +537,11 @@ def extract_requirements_from_pdf(pdf_path: Path) -> list[Requirement]:
             )
 
     return requirements
+
+
+def extract_requirements_from_pdf(pdf_path: Path) -> list[Requirement]:
+    pages = extract_pdf_pages(pdf_path)
+    return extract_requirements_from_pages(pdf_path, pages)
 
 
 def build_comparison(documents: list[dict], requirements: list[dict]) -> dict:
@@ -509,9 +653,12 @@ def write_csv(report: dict, csv_path: Path) -> None:
 def build_report(pdf_paths: list[Path]) -> dict:
     documents: list[dict] = []
     all_requirements: list[Requirement] = []
+    all_sections: list[SectionBlock] = []
 
     for pdf_path in pdf_paths:
-        requirements = extract_requirements_from_pdf(pdf_path)
+        pages = extract_pdf_pages(pdf_path)
+        requirements = extract_requirements_from_pages(pdf_path, pages)
+        sections = extract_sections_from_pages(pdf_path, pages)
         kind_counts = Counter(requirement.kind for requirement in requirements)
         documents.append(
             {
@@ -523,16 +670,20 @@ def build_report(pdf_paths: list[Path]) -> dict:
             }
         )
         all_requirements.extend(requirements)
+        all_sections.extend(sections)
 
     requirements_dicts = [asdict(req) for req in all_requirements]
+    sections_dicts = [asdict(section) for section in all_sections]
     comparison = build_comparison(documents, requirements_dicts)
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "document_count": len(documents),
         "requirement_count": len(requirements_dicts),
+        "section_count": len(sections_dicts),
         "documents": documents,
         "requirements": requirements_dicts,
+        "sections": sections_dicts,
         "comparison": comparison,
     }
 

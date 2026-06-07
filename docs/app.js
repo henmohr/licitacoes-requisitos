@@ -140,6 +140,74 @@ function renderDocuments() {
     .join("");
 }
 
+function parseSectionTable(section) {
+  const lines = String(section.content || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return null;
+  }
+
+  const headerLine = lines[0];
+  const headerNames = [];
+  if (/item/i.test(headerLine) && /descri/i.test(headerLine)) {
+    headerNames.push("Item", "Descrição");
+    if (/avali/i.test(headerLine)) {
+      headerNames.push("Avaliadores");
+    }
+  } else {
+    headerNames.push(
+      ...headerLine
+        .split(/\s{2,}/)
+        .map((part) => part.trim())
+        .filter(Boolean),
+    );
+  }
+
+  const rows = [];
+  let currentRow = null;
+
+  for (const line of lines.slice(1)) {
+    if (/^(?:\d+\.\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]|\d+(?:\.\d+)+\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/.test(line)) {
+      break;
+    }
+
+    const match = line.match(/^(\d+)\s+(.*)$/);
+    if (match) {
+      if (currentRow) {
+        rows.push(currentRow);
+      }
+      currentRow = {
+        item: match[1],
+        description: match[2].trim(),
+        evaluators: "",
+      };
+      continue;
+    }
+
+    if (currentRow) {
+      currentRow.description = currentRow.description
+        ? `${currentRow.description} ${line}`
+        : line;
+    }
+  }
+
+  if (currentRow) {
+    rows.push(currentRow);
+  }
+
+  if (!rows.length) {
+    return null;
+  }
+
+  return {
+    headers: headerNames.length ? headerNames : ["Item", "Descrição"],
+    rows,
+  };
+}
+
 function renderSections() {
   const sections = state.data.sections || [];
   const container = document.getElementById("sections");
@@ -166,7 +234,48 @@ function renderSections() {
               <span><strong>Tipo:</strong> ${section.is_table_like ? "Tabela" : "Texto"}</span>
             </div>
           </div>
-          <pre class="section-content">${escapeHtml(section.content || "Sem conteúdo extraído para esta seção.")}</pre>
+          ${
+            section.is_table_like
+              ? (() => {
+                  const table = parseSectionTable(section);
+                  if (!table) {
+                    return `<pre class="section-content">${escapeHtml(
+                      section.content || "Sem conteúdo extraído para esta seção.",
+                    )}</pre>`;
+                  }
+                  const headerHtml = table.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("");
+                  const bodyHtml = table.rows
+                    .map(
+                      (row) => `
+                        <tr>
+                          <td>${escapeHtml(row.item)}</td>
+                          <td>${escapeHtml(row.description)}</td>
+                          ${table.headers.length > 2 ? `<td>${escapeHtml(row.evaluators || "")}</td>` : ""}
+                        </tr>
+                      `,
+                    )
+                    .join("");
+                  return `
+                    <div class="table-wrap">
+                      <table class="section-table">
+                        <thead>
+                          <tr>${headerHtml}</tr>
+                        </thead>
+                        <tbody>${bodyHtml}</tbody>
+                      </table>
+                    </div>
+                    <details class="section-raw">
+                      <summary>Ver texto bruto</summary>
+                      <pre class="section-content">${escapeHtml(
+                        section.content || "Sem conteúdo extraído para esta seção.",
+                      )}</pre>
+                    </details>
+                  `;
+                })()
+              : `<pre class="section-content">${escapeHtml(
+                  section.content || "Sem conteúdo extraído para esta seção.",
+                )}</pre>`
+          }
         </article>
       `,
     )

@@ -330,6 +330,51 @@ select {
   line-height: 1.5;
 }
 
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(36, 77, 87, 0.03);
+}
+
+.section-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+  font-size: 14px;
+}
+
+.section-table th,
+.section-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.section-table th {
+  background: rgba(36, 77, 87, 0.08);
+  color: var(--accent-2);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.section-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.section-raw {
+  margin-top: 12px;
+}
+
+.section-raw summary {
+  cursor: pointer;
+  color: var(--accent-2);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
 .comparison {
   display: grid;
   gap: 16px;

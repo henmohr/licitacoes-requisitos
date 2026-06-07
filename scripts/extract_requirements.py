@@ -122,6 +122,12 @@ MUNICIPALITY_RE = re.compile(
     r"(?:,|\s+Estado\s+do|\s+Estado\s+da|\s+Estado\s+de|\s+PR\b|\s+Paran[aá]\b|\s+SC\b|\s+RS\b|\s+SP\b|\s+MG\b|$)",
     re.IGNORECASE,
 )
+STATE_HEADER_RE = re.compile(r"^(?:ESTADO\s+DO|ESTADO\s+DA|ESTADO\s+DE)\s+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-ZÁÀÂÃÉÊÍÓÔÕÚÇ \-']+)$", re.IGNORECASE)
+MUNICIPALITY_HEADER_RE = re.compile(
+    r"^(?:PREFEITURA\s+MUNICIPAL\s+DE|MUNIC[IÍ]PIO\s+DE|C[ÂA]MARA\s+MUNICIPAL\s+DE)\s+"
+    r"([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-ZÁÀÂÃÉÊÍÓÔÕÚÇ \-']+)$",
+    re.IGNORECASE,
+)
 STATE_HINT_RE = re.compile(r"Estado\s+do\s+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-Za-zÁÀÂÃÉÊÍÓÔÕÚÇç \-]+)", re.IGNORECASE)
 STATE_ABBR_RE = re.compile(r"\b(PR|SC|RS|SP|MG|RJ|ES|BA|GO|MT|MS|DF|CE|RN|PB|PE|AL|SE|MA|PI|PA|AP|AM|RR|AC|RO|TO)\b", re.IGNORECASE)
 SOFTWARE_PREFIX_RE = re.compile(
@@ -734,20 +740,50 @@ def load_municipality_reference(csv_path: Path) -> dict[tuple[str, str], dict[st
 
 
 def extract_municipality_and_state(pages: list[str], pdf_path: Path) -> tuple[str, str]:
-    haystack = "\n".join(pages[:4])
-    match = MUNICIPALITY_RE.search(haystack)
-    municipality = normalize_display_name(match.group(1)) if match else ""
+    municipality = ""
     state = ""
 
-    if match:
-        snippet = haystack[match.end() : match.end() + 80]
-        state_match = STATE_HINT_RE.search(snippet)
-        if state_match:
-            state = normalize_display_name(state_match.group(1))
-        else:
-            abbr_match = STATE_ABBR_RE.search(snippet)
-            if abbr_match:
-                state = abbr_match.group(1).upper()
+    for page_text in pages[:4]:
+        for raw_line in page_text.splitlines():
+            line = normalize_spaces(raw_line.replace("\t", " "))
+            if not line:
+                continue
+
+            if not state:
+                state_match = STATE_HEADER_RE.match(line)
+                if state_match:
+                    state = normalize_display_name(state_match.group(1))
+                    continue
+
+            if not municipality:
+                municipality_match = MUNICIPALITY_HEADER_RE.match(line)
+                if municipality_match:
+                    municipality = normalize_display_name(municipality_match.group(1))
+                    continue
+
+            if municipality and not state:
+                state_hint = STATE_HINT_RE.search(line)
+                if state_hint:
+                    state = normalize_display_name(state_hint.group(1))
+                    continue
+                abbr_match = STATE_ABBR_RE.search(line)
+                if abbr_match:
+                    state = abbr_match.group(1).upper()
+                    continue
+
+    if not municipality:
+        haystack = "\n".join(pages[:4])
+        match = MUNICIPALITY_RE.search(haystack)
+        if match:
+            municipality = normalize_display_name(match.group(1))
+            snippet = haystack[match.end() : match.end() + 80]
+            state_match = STATE_HINT_RE.search(snippet)
+            if state_match:
+                state = normalize_display_name(state_match.group(1))
+            else:
+                abbr_match = STATE_ABBR_RE.search(snippet)
+                if abbr_match:
+                    state = abbr_match.group(1).upper()
 
     if not municipality:
         name_guess = pdf_path.stem

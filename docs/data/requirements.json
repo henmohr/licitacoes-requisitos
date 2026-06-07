@@ -1,9 +1,10 @@
 {
-  "generated_at": "2026-06-07T15:12:32.081803+00:00",
+  "generated_at": "2026-06-07T18:51:55.056264+00:00",
   "document_count": 1,
   "requirement_count": 625,
   "section_count": 492,
   "lot_count": 2,
+  "municipality_count": 1,
   "documents": [
     {
       "file": "edital PE 29.2026 -  sistema prefeitura e outros.pdf",
@@ -12093,6 +12094,38 @@
           "total_price": "24.187,50"
         }
       ]
+    }
+  ],
+  "municipalities": [
+    {
+      "source_file": "edital PE 29.2026 -  sistema prefeitura e outros.pdf",
+      "municipality": "Bom Sucesso do Sul",
+      "state": "Paraná",
+      "software_modules": [
+        "Contabilidade Pública",
+        "Responsabilidade Fiscal",
+        "Planejamento – PPA, LDO e LOA",
+        "Tesouraria – Saldos de Bancos e Fluxo Monetário",
+        "Informações ao TCE\\PR",
+        "Licitações e Contratos",
+        "Gestão de Almoxarifado",
+        "Gestão de Patrimônio",
+        "Gestão de Frotas",
+        "Gestão de Frotas Implantação, Conversão e Treinamento do Módulo",
+        "Recursos Humanos e Folha de Pagamento",
+        "Recursos Humanos e Folha de Pagamento – Atos Legais e Efetividades",
+        "Recursos Humanos e Folha de Pagamento – Atualização Cadastral e-Social",
+        "Recursos Humanos e Folha de Pagamento – Envio de informações e-Social",
+        "Recursos Humanos e Folha de Pagamento – Registro Segurança e Medicina do Trabalho",
+        "Recursos Humanos e Folha de Pagamento – Margem Consignável",
+        "Recursos Humanos e Folha de Pagamento – Avaliação e Desempenho",
+        "Recursos Humanos e Folha de Pagamento – Registro Concurso Público",
+        "Tributos Municipais",
+        "Tributos Municipais –Atendimento ao Contribuinte"
+      ],
+      "lot_count": 2,
+      "item_count": 91,
+      "total_value": "744.468,07"
     }
   ],
   "comparison": {

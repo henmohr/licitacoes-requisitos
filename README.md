@@ -37,6 +37,8 @@ python3 scripts/extract_requirements.py --input-dir /caminho/para/pdfs --output-
 - Classifica de forma heurística em categorias como `tecnico`, `prazo`, `habilitacao` e `restricao`
 - Detecta títulos de seção, inclusive blocos de tabela com cabeçalhos quebrados em mais de uma linha
 - Extrai lotes de preços com item, descrição, quantidade, valor unitário e valor total
+- Cataloga o município detectado em cada edital e agrupa os softwares identificados
+- Mostra um mapa com os municípios catalogados na página estática
 - Resume por seção e marca duplicatas exatas entre documentos
 - Gera CSV para abrir no Excel ou importar em outras ferramentas
 - Mostra comparação entre editais quando houver mais de um PDF

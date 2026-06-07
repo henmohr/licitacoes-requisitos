@@ -117,6 +117,17 @@ LOT_ITEM_RE = re.compile(
     re.IGNORECASE,
 )
 LOT_PRICE_RE = re.compile(r"R\$\s*[\d\.\,]+")
+MUNICIPALITY_RE = re.compile(
+    r"\b(?:O\s+)?(?:MUNIC[ÍI]PIO|PREFEITURA\s+MUNICIPAL|C[ÂA]MARA\s+MUNICIPAL)\s+DE\s+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9 \-']{2,}?)"
+    r"(?:,|\s+Estado\s+do|\s+Estado\s+da|\s+Estado\s+de|\s+PR\b|\s+Paran[aá]\b|\s+SC\b|\s+RS\b|\s+SP\b|\s+MG\b|$)",
+    re.IGNORECASE,
+)
+STATE_HINT_RE = re.compile(r"Estado\s+do\s+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-Za-zÁÀÂÃÉÊÍÓÔÕÚÇç \-]+)", re.IGNORECASE)
+STATE_ABBR_RE = re.compile(r"\b(PR|SC|RS|SP|MG|RJ|ES|BA|GO|MT|MS|DF|CE|RN|PB|PE|AL|SE|MA|PI|PA|AP|AM|RR|AC|RO|TO)\b", re.IGNORECASE)
+SOFTWARE_PREFIX_RE = re.compile(
+    r"^(?:Implanta[cç][aã]o, Convers[aã]o e Treinamento do M[oó]dulo|Licen[cç]a e Loca[cç][aã]o do M[oó]dulo)\s+",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -161,6 +172,17 @@ class LotBlock:
     title: str
     total_value: str
     items: list[LotItem]
+
+
+@dataclass
+class MunicipalityRecord:
+    source_file: str
+    municipality: str
+    state: str
+    software_modules: list[str]
+    lot_count: int
+    item_count: int
+    total_value: str
 
 
 def command_exists(name: str) -> bool:
@@ -578,6 +600,60 @@ def strip_price_tokens(text: str) -> str:
     return LOT_PRICE_RE.sub("", text).replace("R$", "").strip()
 
 
+def normalize_display_name(text: str) -> str:
+    cleaned = normalize_spaces(text)
+    if not cleaned:
+        return ""
+    result = cleaned.title()
+    for word in (" De ", " Da ", " Do ", " Das ", " Dos "):
+        result = result.replace(word, word.lower())
+    return result
+
+
+def extract_municipality_and_state(pages: list[str], pdf_path: Path) -> tuple[str, str]:
+    haystack = "\n".join(pages[:4])
+    match = MUNICIPALITY_RE.search(haystack)
+    municipality = normalize_display_name(match.group(1)) if match else ""
+    state = ""
+
+    if match:
+        snippet = haystack[match.end() : match.end() + 80]
+        state_match = STATE_HINT_RE.search(snippet)
+        if state_match:
+            state = normalize_display_name(state_match.group(1))
+        else:
+            abbr_match = STATE_ABBR_RE.search(snippet)
+            if abbr_match:
+                state = abbr_match.group(1).upper()
+
+    if not municipality:
+        name_guess = pdf_path.stem
+        municipality = normalize_display_name(name_guess.split(" - ")[0].split("–")[0].split("—")[0])
+
+    return municipality, state
+
+
+def extract_software_modules(lots: list[LotBlock]) -> list[str]:
+    modules: list[str] = []
+    seen: set[str] = set()
+
+    for lot in lots:
+        for item in lot.items:
+            description = SOFTWARE_PREFIX_RE.sub("", item.description).strip(" -–")
+            description = normalize_spaces(description)
+            description = re.sub(r"^(?:de|da|do|das|dos|e)\s+", "", description, flags=re.IGNORECASE)
+            description = re.sub(r"^M[oó]dulo\s+", "", description, flags=re.IGNORECASE)
+            if not description:
+                continue
+            key = normalize_for_key(description)
+            if key in seen:
+                continue
+            seen.add(key)
+            modules.append(description)
+
+    return modules
+
+
 def extract_lots_from_pages(pdf_path: Path, pages: list[str]) -> list[LotBlock]:
     lines: list[tuple[int, int, str]] = []
     for page_number, page_text in enumerate(pages, start=1):
@@ -803,13 +879,17 @@ def build_report(pdf_paths: list[Path]) -> dict:
     all_requirements: list[Requirement] = []
     all_sections: list[SectionBlock] = []
     all_lots: list[LotBlock] = []
+    municipalities: list[MunicipalityRecord] = []
 
     for pdf_path in pdf_paths:
         pages = extract_pdf_pages(pdf_path)
         requirements = extract_requirements_from_pages(pdf_path, pages)
         sections = extract_sections_from_pages(pdf_path, pages)
         lots = extract_lots_from_pages(pdf_path, pages)
+        municipality, state = extract_municipality_and_state(pages, pdf_path)
+        software_modules = extract_software_modules(lots)
         kind_counts = Counter(requirement.kind for requirement in requirements)
+        total_value = next((lot.total_value for lot in lots if lot.total_value), "")
         documents.append(
             {
                 "file": pdf_path.name,
@@ -822,10 +902,22 @@ def build_report(pdf_paths: list[Path]) -> dict:
         all_requirements.extend(requirements)
         all_sections.extend(sections)
         all_lots.extend(lots)
+        municipalities.append(
+            MunicipalityRecord(
+                source_file=pdf_path.name,
+                municipality=municipality,
+                state=state,
+                software_modules=software_modules[:20],
+                lot_count=len(lots),
+                item_count=sum(len(lot.items) for lot in lots),
+                total_value=total_value,
+            )
+        )
 
     requirements_dicts = [asdict(req) for req in all_requirements]
     sections_dicts = [asdict(section) for section in all_sections]
     lots_dicts = [asdict(lot) for lot in all_lots]
+    municipalities_dicts = [asdict(entry) for entry in municipalities]
     comparison = build_comparison(documents, requirements_dicts)
 
     return {
@@ -834,10 +926,12 @@ def build_report(pdf_paths: list[Path]) -> dict:
         "requirement_count": len(requirements_dicts),
         "section_count": len(sections_dicts),
         "lot_count": len(lots_dicts),
+        "municipality_count": len(municipalities_dicts),
         "documents": documents,
         "requirements": requirements_dicts,
         "sections": sections_dicts,
         "lots": lots_dicts,
+        "municipalities": municipalities_dicts,
         "comparison": comparison,
     }
 

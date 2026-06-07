@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-05T00:00:00Z",
+  "document_count": 0,
+  "requirement_count": 0,
+  "documents": [],
+  "requirements": [],
+  "comparison": {
+    "kinds": [],
+    "document_summaries": [],
+    "shared_requirement_count": 0,
+    "unique_requirement_count": 0,
+    "shared_examples": [],
+    "duplicate_groups": [],
+    "repeated_within_doc_groups": [],
+    "unique_examples_by_doc": {}
+  }
+}

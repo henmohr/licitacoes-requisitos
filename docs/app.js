@@ -150,10 +150,10 @@ function renderStatus() {
 }
 
 function renderLots() {
-  const document = getActiveDocument();
-  const lots = document ? getDocumentLots(document.file) : [];
+  const activeDocument = getActiveDocument();
+  const lots = activeDocument ? getDocumentLots(activeDocument.file) : [];
   const count = document.getElementById("lotCount");
-  count.textContent = document ? `${document.file} • ${lots.length} lote(s)` : "Nenhum documento ativo";
+  count.textContent = activeDocument ? `${activeDocument.file} • ${lots.length} lote(s)` : "Nenhum documento ativo";
 }
 
 function renderDocumentTabs() {
@@ -244,6 +244,13 @@ function renderDocumentTabs() {
       </div>
       <div class="kind-pills">${modulePills}</div>
       ${sectionTitles ? `<div class="kind-pills">${sectionTitles}</div>` : ""}
+      <section class="module-highlight">
+        <div class="panel-header compact">
+          <h4>Módulos identificados</h4>
+          <span>${modules.length} módulo(s)</span>
+        </div>
+        <div class="kind-pills">${modulePills}</div>
+      </section>
       <div class="document-summary-grid">
         <div class="status-card"><span>Município</span><strong>${escapeHtml(activeDocument.municipality || "Não identificado")}</strong></div>
         <div class="status-card"><span>Estado</span><strong>${escapeHtml(activeDocument.state || "Não identificado")}</strong></div>
@@ -253,21 +260,24 @@ function renderDocumentTabs() {
       ${
         lotRows
           ? `
-            <div class="table-wrap document-lot-wrap">
-              <table class="lot-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Descrição</th>
-                    <th>Unid.</th>
-                    <th>Qtde.</th>
-                    <th>Valor Unit.</th>
-                    <th>Valor Total</th>
-                  </tr>
-                </thead>
-                <tbody>${lotRows}</tbody>
-              </table>
-            </div>
+            <details class="document-lot-details">
+              <summary>Itens e valores do documento (${docLots.reduce((sum, lot) => sum + (lot.items?.length || 0), 0)} item(ns))</summary>
+              <div class="table-wrap document-lot-wrap">
+                <table class="lot-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Descrição</th>
+                      <th>Unid.</th>
+                      <th>Qtde.</th>
+                      <th>Valor Unit.</th>
+                      <th>Valor Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>${lotRows}</tbody>
+                </table>
+              </div>
+            </details>
           `
           : `<div class="empty">Nenhum item de lote foi detectado neste documento.</div>`
       }
